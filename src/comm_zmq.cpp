@@ -22,12 +22,36 @@
 using namespace goldobot;
 using namespace std;
 
+#ifndef M_PI
+#define M_PI 3.141592653589793
+#endif
+
+
+#if 1 /* FIXME : DEBUG */
+struct PropulsionTelemetry
+{
+  int16_t x;//quarters of mm
+  int16_t y;
+  int16_t yaw;
+  int16_t speed;// mm per second
+  int16_t yaw_rate;// mradian per second
+  int16_t acceleration;
+  int16_t angular_acceleration;
+  uint16_t left_encoder;
+  uint16_t right_encoder;
+  int8_t left_pwm;// percents
+  int8_t right_pwm;
+  uint8_t state;
+  uint8_t error;
+};
+
+#endif
 
 CommZmq CommZmq::s_instance;
 
 CommZmq& CommZmq::instance()
 {
-	return s_instance;
+  return s_instance;
 }
 
 CommZmq::CommZmq()
@@ -145,6 +169,10 @@ void CommZmq::taskFunction()
   m_task_running = true;
 
   FILE *dbg_log_fd = fopen("comm_dbg.txt", "wt");
+  FILE *dbg_pos_fd = fopen("dbg_pos.txt", "wt");
+  FILE *dbg_x_fd = fopen("dbg_x.txt", "wt");
+  FILE *dbg_y_fd = fopen("dbg_y.txt", "wt");
+  FILE *dbg_theta_fd = fopen("dbg_theta.txt", "wt");
 
   while(!m_stop_task)
   {
@@ -201,11 +229,13 @@ void CommZmq::taskFunction()
         uint16_t message_type = 0;
         memcpy (&message_type, buff, sizeof(message_type));
 
-#if 1 /* FIXME : DEBUG */
+#if 0 /* FIXME : DEBUG */
         if(is_legacy)
           dbg_dump_msg(dbg_log_fd, "COMM_UART : ", buff, bytes_read);
         else
           dbg_dump_msg(dbg_log_fd, "GOLDO_IHM : ", buff, bytes_read);
+#else
+        is_legacy=is_legacy;
 #endif
 
         /* FIXME : TODO : import message_types.h into the project */
@@ -218,6 +248,33 @@ void CommZmq::taskFunction()
           printf ("  ZMQ DEBUG: RplidarStop\n");
           CommRplidar::instance().stop_scan();
           break;
+#if 1 /* FIXME : DEBUG */
+        case 8:   /* PropulsionTelemetry             */
+          int log_time_ms = 0;
+          clock_gettime(1, &curr_tp);
+          log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
+          unsigned char *dbg_p = buff+2;
+          PropulsionTelemetry *ptm = (PropulsionTelemetry *) dbg_p;
+          double dbg_x_mm = (double) ptm->x / 4000.0;
+          double dbg_y_mm = (double) ptm->y / 4000.0;
+          double dbg_theta_deg = 180.0 * ptm->yaw / 32767.0;
+          double l_odo_x_mm      = (double)RobotState::instance().s().x_mm;
+          double l_odo_y_mm      = (double)RobotState::instance().s().y_mm;
+          double l_odo_theta_deg = (double)RobotState::instance().s().theta_deg;
+
+          fprintf(dbg_pos_fd, "TS %d\n", log_time_ms);
+          fprintf(dbg_pos_fd, "DIRECT %f %f %f\n",
+                  l_odo_x_mm, l_odo_y_mm, l_odo_theta_deg);
+          fprintf(dbg_pos_fd, "COMM %f %f %f\n",
+                  dbg_x_mm, dbg_y_mm, dbg_theta_deg);
+          fprintf(dbg_x_fd, "%d %f\n", log_time_ms, 
+                  dbg_x_mm - l_odo_x_mm);
+          fprintf(dbg_y_fd, "%d %f\n", log_time_ms, 
+                  dbg_y_mm - l_odo_y_mm);
+          fprintf(dbg_theta_fd, "%d %f\n", log_time_ms, 
+                  dbg_theta_deg - l_odo_theta_deg);
+          break;
+#endif
         }
       }
     }
@@ -234,6 +291,10 @@ void CommZmq::taskFunction()
   zmq_term(m_zmq_context);
 
   fclose(dbg_log_fd);
+  fclose(dbg_pos_fd);
+  fclose(dbg_x_fd);
+  fclose(dbg_y_fd);
+  fclose(dbg_theta_fd);
 
   m_task_running = false;
 }
