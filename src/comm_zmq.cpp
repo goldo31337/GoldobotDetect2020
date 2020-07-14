@@ -125,7 +125,6 @@ void CommZmq::taskFunction()
   struct timespec curr_tp;
   int curr_time_ms = 0;
   int old_time_ms = 0;
-  int log_time_ms = 0;
   bool have_msg = false;
   bool is_legacy = false;
 
