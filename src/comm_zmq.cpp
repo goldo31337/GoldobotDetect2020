@@ -210,7 +210,7 @@ void CommZmq::taskFunction()
       if(is_legacy)
         fprintf(dbg_log_fd, "COMM_UART : ");
       else
-        fprintf(dbg_log_fd, "COMM_UART : ");
+        fprintf(dbg_log_fd, "GOLDO_IHM : ");
 
       for (int i=0; i<(int)bytes_read; i++) 
         fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
