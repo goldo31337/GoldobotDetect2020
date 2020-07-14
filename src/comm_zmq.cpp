@@ -197,27 +197,16 @@ void CommZmq::taskFunction()
 
     if(have_msg)
     {
-      while (bytes_read!=0)
+      /*while (bytes_read!=0)*/
       {
         uint16_t message_type = 0;
         memcpy (&message_type, buff, sizeof(message_type));
 
 #if 1 /* FIXME : DEBUG */
-        clock_gettime(1, &curr_tp);
-
-        log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
-
-        fprintf(dbg_log_fd, "%d : ", log_time_ms);
-
         if(is_legacy)
           dbg_dump_msg(dbg_log_fd, "COMM_UART : ", buff, bytes_read);
         else
           dbg_dump_msg(dbg_log_fd, "GOLDO_IHM : ", buff, bytes_read);
-
-        for (int i=0; i<(int)bytes_read; i++) 
-          fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
-
-        fprintf(dbg_log_fd, "\n");
 #endif
 
         /* FIXME : TODO : import message_types.h into the project */
@@ -274,7 +263,7 @@ void CommZmq::dbg_dump_msg(
 
   fprintf(dbg_log_fd, "%d : ", log_time_ms);
 
-  fprintf(dbg_log_fd, "%s", prefix);
+  fprintf(dbg_log_fd, "%s : ", prefix);
 
   for (int i=0; i<(int)len; i++) 
     fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
