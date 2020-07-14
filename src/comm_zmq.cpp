@@ -255,8 +255,8 @@ void CommZmq::taskFunction()
           log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
           unsigned char *dbg_p = buff+2;
           PropulsionTelemetry *ptm = (PropulsionTelemetry *) dbg_p;
-          double dbg_x_mm = (double) ptm->x / 4000.0;
-          double dbg_y_mm = (double) ptm->y / 4000.0;
+          double dbg_x_mm = (double) ptm->x / 4.0;
+          double dbg_y_mm = (double) ptm->y / 4.0;
           double dbg_theta_deg = 180.0 * ptm->yaw / 32767.0;
           double l_odo_x_mm      = (double)RobotState::instance().s().x_mm;
           double l_odo_y_mm      = (double)RobotState::instance().s().y_mm;
