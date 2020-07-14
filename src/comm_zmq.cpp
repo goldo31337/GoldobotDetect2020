@@ -86,6 +86,8 @@ int CommZmq::init(int port_nb, int legacy_port_nb)
 
 
 #if 1 /* FIXME : DEBUG */
+  printf("  ZMQ DEBUG: legacy_port_nb = %d\n", legacy_port_nb);
+
   m_legacy_pull_socket = zmq_socket(m_zmq_context, ZMQ_SUB);
   if (m_legacy_pull_socket<0) {
     printf ("RPLIDAR : cannot create legacy ZMQ_SUB socket\n");
@@ -107,7 +109,7 @@ int CommZmq::init(int port_nb, int legacy_port_nb)
     return -1;
   }
 
-  sprintf(char_buff, "tcp://*:%d", legacy_port_nb+1);
+  sprintf(char_buff, "tcp://127.0.0.1:%d", legacy_port_nb+1);
   //printf("  ZMQ DEBUG: char_buff = %s\n", char_buff);
   rc = zmq_connect(m_legacy_pub_socket, char_buff);
   if (rc<0) {
