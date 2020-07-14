@@ -13,7 +13,7 @@ namespace goldobot
 
     CommZmq ();
 
-    int init(int port_nb);
+    int init(int port_nb, int legacy_port_nb=3001);
 
     virtual void taskFunction();
 
@@ -25,6 +25,8 @@ namespace goldobot
     void* m_zmq_context;
     void* m_pub_socket;
     void* m_pull_socket;
+    void* m_legacy_pub_socket;
+    void* m_legacy_pull_socket;
 
     static CommZmq s_instance;
   };

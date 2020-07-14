@@ -14,12 +14,17 @@
 #include <math.h>
 #include <pthread.h>
 
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+
 #include "comm_zmq.hpp"
 #include "comm_nucleo.hpp"
 #include "comm_rplidar.hpp"
 
 
 using namespace goldobot;
+using namespace std;
 
 
 CommZmq CommZmq::s_instance;
@@ -39,9 +44,11 @@ CommZmq::CommZmq()
   m_zmq_context = NULL;
   m_pub_socket = NULL;
   m_pull_socket = NULL;
+  m_legacy_pub_socket = NULL;
+  m_legacy_pull_socket = NULL;
 }
 
-int CommZmq::init(int port_nb)
+int CommZmq::init(int port_nb, int legacy_port_nb)
 {
   int rc;
   char char_buff[64];
@@ -78,20 +85,18 @@ int CommZmq::init(int port_nb)
   zmq_setsockopt(m_pull_socket,ZMQ_SUBSCRIBE, "", 0);
 
 
-#if 0 /* FIXME : TODO */
-  int legacy_port_nb = 3001;
-
+#if 1 /* FIXME : DEBUG */
   m_legacy_pull_socket = zmq_socket(m_zmq_context, ZMQ_SUB);
   if (m_legacy_pull_socket<0) {
     printf ("RPLIDAR : cannot create legacy ZMQ_SUB socket\n");
     return -1;
   }
 
-  sprintf(char_buff, "tcp://*:%d", legacy_port_nb);
+  sprintf(char_buff, "tcp://127.0.0.1:%d", legacy_port_nb);
   //printf("  ZMQ DEBUG: char_buff = %s\n", char_buff);
-  rc = zmq_bind(m_legacy_pull_socket, char_buff);
+  rc = zmq_connect(m_legacy_pull_socket, char_buff);
   if (rc<0) {
-    printf ("RPLIDAR : cannot bind legacy ZMQ_SUB socket\n");
+    printf ("RPLIDAR : cannot connect legacy ZMQ_SUB socket\n");
     return -1;
   }
   zmq_setsockopt(m_legacy_pull_socket,ZMQ_SUBSCRIBE, "", 0);
@@ -104,13 +109,14 @@ int CommZmq::init(int port_nb)
 
   sprintf(char_buff, "tcp://*:%d", legacy_port_nb+1);
   //printf("  ZMQ DEBUG: char_buff = %s\n", char_buff);
-  rc = zmq_bind(m_legacy_pub_socket, char_buff);
+  rc = zmq_connect(m_legacy_pub_socket, char_buff);
   if (rc<0) {
-    printf ("RPLIDAR : cannot bind legacy ZMQ_PUB socket\n");
+    printf ("RPLIDAR : cannot connect legacy ZMQ_PUB socket\n");
     return -1;
   }
-
-#endif /* FIXME : TODO */
+#else
+  legacy_port_nb=legacy_port_nb;
+#endif /* FIXME : DEBUG */
 
 
   return 0;
@@ -121,19 +127,36 @@ void CommZmq::taskFunction()
   struct timespec curr_tp;
   int curr_time_ms = 0;
   int old_time_ms = 0;
+  int log_time_ms = 0;
+  bool have_msg = false;
+  bool is_legacy = false;
 
+  unsigned char buff[1024];
+  size_t bytes_read = 0;
 
-  zmq_pollitem_t poll_items[1];
+  zmq_pollitem_t poll_items[2];
 
   poll_items[0].socket = m_pull_socket;
   poll_items[0].fd = 0;
   poll_items[0].events = ZMQ_POLLIN;
+#if 1 /* FIXME : DEBUG */
+  poll_items[1].socket = m_pull_socket;
+  poll_items[1].fd = 0;
+  poll_items[1].events = ZMQ_POLLIN;
+#endif /* FIXME : DEBUG */
 
   m_task_running = true;
 
+  ofstream dbg_log;
+  dbg_log.open("comm_dbg.txt");
+
   while(!m_stop_task)
   {
+#if 1 /* FIXME : DEBUG */
+    zmq_poll (poll_items, 2, 100);
+#else
     zmq_poll (poll_items, 1, 100);
+#endif /* FIXME : DEBUG */
 
     clock_gettime(1, &curr_tp);
 
@@ -147,8 +170,6 @@ void CommZmq::taskFunction()
 
     if(poll_items[0].revents && ZMQ_POLLIN)
     {            
-      unsigned char buff[1024];
-      size_t bytes_read = 0;
       int64_t more=1;
       size_t more_size = sizeof(more);
       while(more)
@@ -157,17 +178,43 @@ void CommZmq::taskFunction()
         zmq_getsockopt(m_pull_socket, ZMQ_RCVMORE, &more, &more_size);
       }
       buff[bytes_read] = 0;
+      have_msg = true;
+      is_legacy = false;
+    }
+
+    if(poll_items[1].revents && ZMQ_POLLIN)
+    {            
+      int64_t more=1;
+      size_t more_size = sizeof(more);
+      while(more)
+      {
+        bytes_read += zmq_recv(m_legacy_pull_socket, buff + bytes_read, sizeof(buff) - bytes_read, 0);           
+        zmq_getsockopt(m_legacy_pull_socket, ZMQ_RCVMORE, &more, &more_size);
+      }
+      buff[bytes_read] = 0;
+      have_msg = true;
+      is_legacy = true;
+    }
+
+    if(have_msg)
+    {            
       uint16_t message_type = 0;
       memcpy (&message_type, buff, sizeof(message_type));
 
-#if 0 /* FIXME : DEBUG */
-      printf("  ZMQ DEBUG: received message_type = %d\n", message_type);
-      printf("  ");
-      {
-        int i;
-        for (i=0; i<(int)bytes_read; i++) printf ("%.2x ",buff[i]);
-        printf ("\n");
-      }
+#if 1 /* FIXME : DEBUG */
+      clock_gettime(1, &curr_tp);
+
+      log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
+
+      dbg_log << log_time_ms << " : ";
+
+      if(is_legacy)
+        dbg_log << "COMM_UART : ";
+      else
+        dbg_log << "GOLDO_IHM : ";
+      for (int i=0; i<(int)bytes_read; i++) 
+        dbg_log << setw(2) << setfill('0') << hex << (int)buff[i] << " ";
+      dbg_log << "\n";
 #endif
 
       /* FIXME : TODO : import message_types.h into the project */
@@ -182,6 +229,8 @@ void CommZmq::taskFunction()
         break;
       }
     }
+    have_msg = false;
+    is_legacy = false;
 
 #ifndef WIN32
     pthread_yield();
@@ -191,6 +240,8 @@ void CommZmq::taskFunction()
   }
 
   zmq_term(m_zmq_context);
+
+  dbg_log.close();
 
   m_task_running = false;
 }
