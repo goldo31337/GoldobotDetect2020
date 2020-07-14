@@ -14,10 +14,6 @@
 #include <math.h>
 #include <pthread.h>
 
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-
 #include "comm_zmq.hpp"
 #include "comm_nucleo.hpp"
 #include "comm_rplidar.hpp"
@@ -149,8 +145,7 @@ void CommZmq::taskFunction()
 
   m_task_running = true;
 
-  ofstream dbg_log;
-  dbg_log.open("comm_dbg.txt");
+  FILE *dbg_log_fd = fopen("comm_dbg.txt", "wt");
 
   while(!m_stop_task)
   {
@@ -210,15 +205,17 @@ void CommZmq::taskFunction()
 
       log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
 
-      dbg_log << log_time_ms << " : ";
+      fprintf(dbg_log_fd, "%d : ", log_time_ms);
 
       if(is_legacy)
-        dbg_log << "COMM_UART : ";
+        fprintf(dbg_log_fd, "COMM_UART : ");
       else
-        dbg_log << "GOLDO_IHM : ";
+        fprintf(dbg_log_fd, "COMM_UART : ");
+
       for (int i=0; i<(int)bytes_read; i++) 
-        dbg_log << setw(2) << setfill('0') << hex << (int)buff[i] << " ";
-      dbg_log << "\n";
+        fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
+
+      fprintf(dbg_log_fd, "\n");
 #endif
 
       /* FIXME : TODO : import message_types.h into the project */
@@ -245,7 +242,7 @@ void CommZmq::taskFunction()
 
   zmq_term(m_zmq_context);
 
-  dbg_log.close();
+  fclose(dbg_log_fd);
 
   m_task_running = false;
 }
