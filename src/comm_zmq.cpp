@@ -170,6 +170,8 @@ void CommZmq::taskFunction()
       old_time_ms = curr_time_ms;
     }
 
+    bytes_read = 0;
+
     if(poll_items[0].revents && ZMQ_POLLIN)
     {            
       int64_t more=1;
