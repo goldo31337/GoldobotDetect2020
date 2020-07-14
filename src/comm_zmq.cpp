@@ -138,7 +138,7 @@ void CommZmq::taskFunction()
   poll_items[0].fd = 0;
   poll_items[0].events = ZMQ_POLLIN;
 #if 1 /* FIXME : DEBUG */
-  poll_items[1].socket = m_pull_socket;
+  poll_items[1].socket = m_legacy_pull_socket;
   poll_items[1].fd = 0;
   poll_items[1].events = ZMQ_POLLIN;
 #endif /* FIXME : DEBUG */
@@ -196,38 +196,41 @@ void CommZmq::taskFunction()
     }
 
     if(have_msg)
-    {            
-      uint16_t message_type = 0;
-      memcpy (&message_type, buff, sizeof(message_type));
+    {
+      while (bytes_read!=0)
+      {
+        uint16_t message_type = 0;
+        memcpy (&message_type, buff, sizeof(message_type));
 
 #if 1 /* FIXME : DEBUG */
-      clock_gettime(1, &curr_tp);
+        clock_gettime(1, &curr_tp);
 
-      log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
+        log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
 
-      fprintf(dbg_log_fd, "%d : ", log_time_ms);
+        fprintf(dbg_log_fd, "%d : ", log_time_ms);
 
-      if(is_legacy)
-        fprintf(dbg_log_fd, "COMM_UART : ");
-      else
-        fprintf(dbg_log_fd, "GOLDO_IHM : ");
+        if(is_legacy)
+          dbg_dump_msg(dbg_log_fd, "COMM_UART : ", buff, bytes_read);
+        else
+          dbg_dump_msg(dbg_log_fd, "GOLDO_IHM : ", buff, bytes_read);
 
-      for (int i=0; i<(int)bytes_read; i++) 
-        fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
+        for (int i=0; i<(int)bytes_read; i++) 
+          fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
 
-      fprintf(dbg_log_fd, "\n");
+        fprintf(dbg_log_fd, "\n");
 #endif
 
-      /* FIXME : TODO : import message_types.h into the project */
-      switch (message_type) {
-      case 1024: /* RplidarStart                   */
-        printf ("  ZMQ DEBUG: RplidarStart\n");
-        CommRplidar::instance().start_scan();
-        break;
-      case 1025: /* RplidarStop                    */
-        printf ("  ZMQ DEBUG: RplidarStop\n");
-        CommRplidar::instance().stop_scan();
-        break;
+        /* FIXME : TODO : import message_types.h into the project */
+        switch (message_type) {
+        case 1024: /* RplidarStart                   */
+          printf ("  ZMQ DEBUG: RplidarStart\n");
+          CommRplidar::instance().start_scan();
+          break;
+        case 1025: /* RplidarStop                    */
+          printf ("  ZMQ DEBUG: RplidarStop\n");
+          CommRplidar::instance().stop_scan();
+          break;
+        }
       }
     }
     have_msg = false;
@@ -259,3 +262,22 @@ int CommZmq::recv(void *buf, size_t len, int flags)
   return zmq_recv (m_pull_socket, buf, len, flags);
 }
 
+void CommZmq::dbg_dump_msg(
+  FILE *dbg_log_fd, const char *prefix, unsigned char *buff, size_t len)
+{
+  struct timespec curr_tp;
+  int log_time_ms = 0;
+
+  clock_gettime(1, &curr_tp);
+
+  log_time_ms = curr_tp.tv_sec*1000 + curr_tp.tv_nsec/1000000;
+
+  fprintf(dbg_log_fd, "%d : ", log_time_ms);
+
+  fprintf(dbg_log_fd, "%s", prefix);
+
+  for (int i=0; i<(int)len; i++) 
+    fprintf(dbg_log_fd, "%.2x ", (int)buff[i]);
+
+  fprintf(dbg_log_fd, "\n");
+}

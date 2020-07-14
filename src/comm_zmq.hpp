@@ -28,6 +28,9 @@ namespace goldobot
     void* m_legacy_pub_socket;
     void* m_legacy_pull_socket;
 
+    void dbg_dump_msg(
+      FILE *dbg_log_fd, const char *prefix, unsigned char *buff, size_t len);
+
     static CommZmq s_instance;
   };
 
