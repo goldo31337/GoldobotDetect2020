@@ -184,7 +184,7 @@ void DirectUartNucleo::taskFunction()
   unsigned char *cp;
 
 
-  if (m_uart_fd<0) {
+  if (m_enabled && (m_uart_fd<0)) {
     fprintf(stderr, "ERROR: DirectUartNucleo::taskFunction(): m_uart_fd=%d\n", m_uart_fd);
     exit_thread(1);
   }
