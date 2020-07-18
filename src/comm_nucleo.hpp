@@ -69,6 +69,8 @@ namespace goldobot
     void exit_thread(int err_code);
 
   private:
+    bool m_enabled;
+
     char m_devname[256];
     int m_uart_fd;
 

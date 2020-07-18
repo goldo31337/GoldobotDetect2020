@@ -49,7 +49,10 @@ void GoldoConf::set_default()
   strncpy(m_c.conf_nucleo_uart_dev_str, conf_nucleo_uart_dev_str_def, 
           sizeof (m_c.conf_nucleo_uart_dev_str));
   m_c.conf_nucleo_uart_baudrate = conf_nucleo_uart_baudrate_def;
+  m_c.conf_zmq_port_comm_uart = conf_zmq_port_comm_uart_def;
   m_c.conf_zmq_port = conf_zmq_port_def;
+  m_c.conf_direct_uart_nucleo_enabled = conf_direct_uart_nucleo_enabled_def;
+  m_c.conf_dbg_log_enabled = conf_dbg_log_enabled_def;
 }
 
 int GoldoConf::init(const char *conf_fname)
@@ -133,11 +136,38 @@ int GoldoConf::parse_yaml_conf(const char * yaml_fname)
       m_c.conf_nucleo_uart_baudrate = strtoul(my_str, NULL, 10);
     }
 
+    conf_node = yconf["environment"]["conf_zmq_port_comm_uart"];
+    if (conf_node) 
+    {
+      my_str = (const char *) conf_node.as<std::string>().c_str();
+      m_c.conf_zmq_port_comm_uart = strtoul(my_str, NULL, 10);
+    }
+
     conf_node = yconf["environment"]["conf_zmq_port"];
     if (conf_node) 
     {
       my_str = (const char *) conf_node.as<std::string>().c_str();
       m_c.conf_zmq_port = strtoul(my_str, NULL, 10);
+    }
+
+    conf_node = yconf["environment"]["conf_direct_uart_nucleo"];
+    if (conf_node) 
+    {
+      my_str = (const char *) conf_node.as<std::string>().c_str();
+      if (strncmp(my_str,"enabled",7)==0)
+      {
+        m_c.conf_direct_uart_nucleo_enabled = true;
+      }
+    }
+
+    conf_node = yconf["environment"]["conf_dbg_log"];
+    if (conf_node) 
+    {
+      my_str = (const char *) conf_node.as<std::string>().c_str();
+      if (strncmp(my_str,"enabled",7)==0)
+      {
+        m_c.conf_dbg_log_enabled = true;
+      }
     }
 
     ret = 0;
@@ -169,7 +199,13 @@ void GoldoConf::display_conf()
              m_c.conf_nucleo_uart_dev_str);
   printf ("  conf_nucleo_uart_baudrate     = %d\n", 
              m_c.conf_nucleo_uart_baudrate);
+  printf ("  conf_zmq_port_comm_uart       = %d\n", 
+             m_c.conf_zmq_port_comm_uart);
   printf ("  conf_zmq_port                 = %d\n", 
              m_c.conf_zmq_port);
+  printf ("  conf_direct_uart_nucleo       = %s\n", 
+          m_c.conf_direct_uart_nucleo_enabled?"enabled":"disabled");
+  printf ("  conf_dbg_log                  = %s\n", 
+          m_c.conf_dbg_log_enabled?"enabled":"disabled");
 }
 

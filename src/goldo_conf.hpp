@@ -17,7 +17,10 @@ namespace goldobot
     _u32   conf_rplidar_baudrate;
     char   conf_nucleo_uart_dev_str[128];
     _u32   conf_nucleo_uart_baudrate;
+    _u32   conf_zmq_port_comm_uart;
     _u32   conf_zmq_port;
+    bool   conf_direct_uart_nucleo_enabled;
+    bool   conf_dbg_log_enabled;
   } goldo_conf_info_t;
 
   class GoldoConf
@@ -55,8 +58,14 @@ namespace goldobot
     static char   conf_nucleo_uart_dev_str_def[];
     static constexpr _u32   conf_nucleo_uart_baudrate_def     = 
       115200;
+    static constexpr _u32   conf_zmq_port_comm_uart_def       = 
+      3001;
     static constexpr _u32   conf_zmq_port_def                 = 
       3101;
+    static constexpr bool   conf_direct_uart_nucleo_enabled_def = 
+      false;
+    static constexpr bool   conf_dbg_log_enabled_def          = 
+      false;
 
     static GoldoConf s_instance;
   };

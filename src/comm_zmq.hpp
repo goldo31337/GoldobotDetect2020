@@ -13,7 +13,7 @@ namespace goldobot
 
     CommZmq ();
 
-    int init(int port_nb, int legacy_port_nb=3001);
+    int init(int port_nb, int comm_uart_port_nb=3001);
 
     virtual void taskFunction();
 
@@ -25,8 +25,8 @@ namespace goldobot
     void* m_zmq_context;
     void* m_pub_socket;
     void* m_pull_socket;
-    void* m_legacy_pub_socket;
-    void* m_legacy_pull_socket;
+    void* m_comm_uart_pub_socket;
+    void* m_comm_uart_pull_socket;
 
     void dbg_dump_msg(
       FILE *dbg_log_fd, const char *prefix, unsigned char *buff, size_t len);

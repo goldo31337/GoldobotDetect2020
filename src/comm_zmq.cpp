@@ -14,6 +14,7 @@
 #include <math.h>
 #include <pthread.h>
 
+#include "goldo_conf.hpp"
 #include "comm_zmq.hpp"
 #include "comm_nucleo.hpp"
 #include "comm_rplidar.hpp"
@@ -64,11 +65,11 @@ CommZmq::CommZmq()
   m_zmq_context = NULL;
   m_pub_socket = NULL;
   m_pull_socket = NULL;
-  m_legacy_pub_socket = NULL;
-  m_legacy_pull_socket = NULL;
+  m_comm_uart_pub_socket = NULL;
+  m_comm_uart_pull_socket = NULL;
 }
 
-int CommZmq::init(int port_nb, int legacy_port_nb)
+int CommZmq::init(int port_nb, int comm_uart_port_nb)
 {
   int rc;
   char char_buff[64];
@@ -105,40 +106,36 @@ int CommZmq::init(int port_nb, int legacy_port_nb)
   zmq_setsockopt(m_pull_socket,ZMQ_SUBSCRIBE, "", 0);
 
 
-#if 1 /* FIXME : DEBUG */
-  printf("  ZMQ DEBUG: legacy_port_nb = %d\n", legacy_port_nb);
+  printf("  ZMQ DEBUG: comm_uart_port_nb = %d\n", comm_uart_port_nb);
 
-  m_legacy_pull_socket = zmq_socket(m_zmq_context, ZMQ_SUB);
-  if (m_legacy_pull_socket<0) {
-    printf ("RPLIDAR : cannot create legacy ZMQ_SUB socket\n");
+  m_comm_uart_pull_socket = zmq_socket(m_zmq_context, ZMQ_SUB);
+  if (m_comm_uart_pull_socket<0) {
+    printf ("RPLIDAR : cannot create comm_uart ZMQ_SUB socket\n");
     return -1;
   }
 
-  sprintf(char_buff, "tcp://127.0.0.1:%d", legacy_port_nb);
+  sprintf(char_buff, "tcp://127.0.0.1:%d", comm_uart_port_nb);
   //printf("  ZMQ DEBUG: char_buff = %s\n", char_buff);
-  rc = zmq_connect(m_legacy_pull_socket, char_buff);
+  rc = zmq_connect(m_comm_uart_pull_socket, char_buff);
   if (rc<0) {
-    printf ("RPLIDAR : cannot connect legacy ZMQ_SUB socket\n");
+    printf ("RPLIDAR : cannot connect comm_uart ZMQ_SUB socket\n");
     return -1;
   }
-  zmq_setsockopt(m_legacy_pull_socket,ZMQ_SUBSCRIBE, "", 0);
+  zmq_setsockopt(m_comm_uart_pull_socket,ZMQ_SUBSCRIBE, "", 0);
 
-  m_legacy_pub_socket = zmq_socket(m_zmq_context, ZMQ_PUB);
-  if (m_legacy_pub_socket<0) {
-    printf ("RPLIDAR : cannot create legacy ZMQ_PUB socket\n");
+  m_comm_uart_pub_socket = zmq_socket(m_zmq_context, ZMQ_PUB);
+  if (m_comm_uart_pub_socket<0) {
+    printf ("RPLIDAR : cannot create comm_uart ZMQ_PUB socket\n");
     return -1;
   }
 
-  sprintf(char_buff, "tcp://127.0.0.1:%d", legacy_port_nb+1);
+  sprintf(char_buff, "tcp://127.0.0.1:%d", comm_uart_port_nb+1);
   //printf("  ZMQ DEBUG: char_buff = %s\n", char_buff);
-  rc = zmq_connect(m_legacy_pub_socket, char_buff);
+  rc = zmq_connect(m_comm_uart_pub_socket, char_buff);
   if (rc<0) {
-    printf ("RPLIDAR : cannot connect legacy ZMQ_PUB socket\n");
+    printf ("RPLIDAR : cannot connect comm_uart ZMQ_PUB socket\n");
     return -1;
   }
-#else
-  legacy_port_nb=legacy_port_nb;
-#endif /* FIXME : DEBUG */
 
 
   return 0;
@@ -146,11 +143,12 @@ int CommZmq::init(int port_nb, int legacy_port_nb)
 
 void CommZmq::taskFunction()
 {
+  goldo_conf_info_t& ci = GoldoConf::instance().c();
   struct timespec curr_tp;
   int curr_time_ms = 0;
   int old_time_ms = 0;
   bool have_msg = false;
-  bool is_legacy = false;
+  bool is_comm_uart = false;
 
   unsigned char buff[1024];
   size_t bytes_read = 0;
@@ -160,27 +158,35 @@ void CommZmq::taskFunction()
   poll_items[0].socket = m_pull_socket;
   poll_items[0].fd = 0;
   poll_items[0].events = ZMQ_POLLIN;
-#if 1 /* FIXME : DEBUG */
-  poll_items[1].socket = m_legacy_pull_socket;
+  poll_items[1].socket = m_comm_uart_pull_socket;
   poll_items[1].fd = 0;
   poll_items[1].events = ZMQ_POLLIN;
-#endif /* FIXME : DEBUG */
 
   m_task_running = true;
 
-  FILE *dbg_log_fd = fopen("comm_dbg.txt", "wt");
-  FILE *dbg_pos_fd = fopen("dbg_pos.txt", "wt");
-  FILE *dbg_x_fd = fopen("dbg_x.txt", "wt");
-  FILE *dbg_y_fd = fopen("dbg_y.txt", "wt");
-  FILE *dbg_theta_fd = fopen("dbg_theta.txt", "wt");
+  FILE *dbg_log_fd   = NULL;
+  FILE *dbg_pos_fd   = NULL;
+  FILE *dbg_x_fd     = NULL;
+  FILE *dbg_y_fd     = NULL;
+  FILE *dbg_theta_fd = NULL;
+  if (ci.conf_dbg_log_enabled)
+  {
+    dbg_log_fd   = fopen("log/comm_dbg.txt", "wt");
+    dbg_pos_fd   = fopen("log/dbg_pos.txt", "wt");
+    dbg_x_fd     = fopen("log/dbg_x.txt", "wt");
+    dbg_y_fd     = fopen("log/dbg_y.txt", "wt");
+    dbg_theta_fd = fopen("log/dbg_theta.txt", "wt");
+
+    if ((dbg_log_fd==NULL)) 
+    {
+      fprintf(stderr,"ERROR : comm_zmq : cannot create log files\n");
+      ci.conf_dbg_log_enabled = false;
+    }
+  }
 
   while(!m_stop_task)
   {
-#if 1 /* FIXME : DEBUG */
     zmq_poll (poll_items, 2, 100);
-#else
-    zmq_poll (poll_items, 1, 100);
-#endif /* FIXME : DEBUG */
 
     clock_gettime(1, &curr_tp);
 
@@ -205,7 +211,7 @@ void CommZmq::taskFunction()
       }
       buff[bytes_read] = 0;
       have_msg = true;
-      is_legacy = false;
+      is_comm_uart = false;
     }
 
     if(poll_items[1].revents && ZMQ_POLLIN)
@@ -214,12 +220,12 @@ void CommZmq::taskFunction()
       size_t more_size = sizeof(more);
       while(more)
       {
-        bytes_read += zmq_recv(m_legacy_pull_socket, buff + bytes_read, sizeof(buff) - bytes_read, 0);           
-        zmq_getsockopt(m_legacy_pull_socket, ZMQ_RCVMORE, &more, &more_size);
+        bytes_read += zmq_recv(m_comm_uart_pull_socket, buff + bytes_read, sizeof(buff) - bytes_read, 0);           
+        zmq_getsockopt(m_comm_uart_pull_socket, ZMQ_RCVMORE, &more, &more_size);
       }
       buff[bytes_read] = 0;
       have_msg = true;
-      is_legacy = true;
+      is_comm_uart = true;
     }
 
     if(have_msg)
@@ -229,14 +235,13 @@ void CommZmq::taskFunction()
         uint16_t message_type = 0;
         memcpy (&message_type, buff, sizeof(message_type));
 
-#if 0 /* FIXME : DEBUG */
-        if(is_legacy)
-          dbg_dump_msg(dbg_log_fd, "COMM_UART : ", buff, bytes_read);
-        else
-          dbg_dump_msg(dbg_log_fd, "GOLDO_IHM : ", buff, bytes_read);
-#else
-        is_legacy=is_legacy;
-#endif
+        if (ci.conf_dbg_log_enabled)
+        {
+          if(is_comm_uart)
+            dbg_dump_msg(dbg_log_fd, "COMM_UART : ", buff, bytes_read);
+          else
+            dbg_dump_msg(dbg_log_fd, "GOLDO_IHM : ", buff, bytes_read);
+        }
 
         /* FIXME : TODO : import message_types.h into the project */
         switch (message_type) {
@@ -248,7 +253,6 @@ void CommZmq::taskFunction()
           printf ("  ZMQ DEBUG: RplidarStop\n");
           CommRplidar::instance().stop_scan();
           break;
-#if 1 /* FIXME : DEBUG */
         case 8:   /* PropulsionTelemetry             */
           int log_time_ms = 0;
           clock_gettime(1, &curr_tp);
@@ -262,24 +266,36 @@ void CommZmq::taskFunction()
           double l_odo_y_mm      = (double)RobotState::instance().s().y_mm;
           double l_odo_theta_deg = (double)RobotState::instance().s().theta_deg;
 
-          fprintf(dbg_pos_fd, "TS %d\n", log_time_ms);
-          fprintf(dbg_pos_fd, "DIRECT %f %f %f\n",
-                  l_odo_x_mm, l_odo_y_mm, l_odo_theta_deg);
-          fprintf(dbg_pos_fd, "COMM %f %f %f\n",
-                  dbg_x_mm, dbg_y_mm, dbg_theta_deg);
-          fprintf(dbg_x_fd, "%d %f\n", log_time_ms, 
-                  dbg_x_mm - l_odo_x_mm);
-          fprintf(dbg_y_fd, "%d %f\n", log_time_ms, 
-                  dbg_y_mm - l_odo_y_mm);
-          fprintf(dbg_theta_fd, "%d %f\n", log_time_ms, 
-                  dbg_theta_deg - l_odo_theta_deg);
+          if (ci.conf_dbg_log_enabled)
+          {
+            fprintf(dbg_pos_fd, "TS %d\n", log_time_ms);
+            fprintf(dbg_pos_fd, "DIRECT %f %f %f\n",
+                    l_odo_x_mm, l_odo_y_mm, l_odo_theta_deg);
+            fprintf(dbg_pos_fd, "COMM %f %f %f\n",
+                    dbg_x_mm, dbg_y_mm, dbg_theta_deg);
+            fprintf(dbg_x_fd, "%d %f\n", log_time_ms, 
+                    dbg_x_mm - l_odo_x_mm);
+            fprintf(dbg_y_fd, "%d %f\n", log_time_ms, 
+                    dbg_y_mm - l_odo_y_mm);
+            fprintf(dbg_theta_fd, "%d %f\n", log_time_ms, 
+                    dbg_theta_deg - l_odo_theta_deg);
+          }
+
+          if (!ci.conf_direct_uart_nucleo_enabled)
+          {
+            RobotState::instance().lock();
+            RobotState::instance().s().x_mm          = dbg_x_mm;
+            RobotState::instance().s().y_mm          = dbg_y_mm;
+            RobotState::instance().s().theta_deg     = dbg_theta_deg;
+            RobotState::instance().release();
+          }
+
           break;
-#endif
         }
       }
     }
     have_msg = false;
-    is_legacy = false;
+    is_comm_uart = false;
 
 #ifndef WIN32
     pthread_yield();
@@ -290,11 +306,14 @@ void CommZmq::taskFunction()
 
   zmq_term(m_zmq_context);
 
-  fclose(dbg_log_fd);
-  fclose(dbg_pos_fd);
-  fclose(dbg_x_fd);
-  fclose(dbg_y_fd);
-  fclose(dbg_theta_fd);
+  if (ci.conf_dbg_log_enabled)
+  {
+    fclose(dbg_log_fd);
+    fclose(dbg_pos_fd);
+    fclose(dbg_x_fd);
+    fclose(dbg_y_fd);
+    fclose(dbg_theta_fd);
+  }
 
   m_task_running = false;
 }

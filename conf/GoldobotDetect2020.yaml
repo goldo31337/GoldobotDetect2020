@@ -7,4 +7,7 @@ environment:
   conf_rplidar_baudrate:         115200
   conf_nucleo_uart_dev_str:      /dev/odometry
   conf_nucleo_uart_baudrate:     115200
+  conf_zmq_port_comm_uart:       3001
   conf_zmq_port:                 3101
+  conf_direct_uart_nucleo:       disabled
+  conf_dbg_log:                  disabled

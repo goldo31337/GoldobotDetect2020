@@ -12,6 +12,7 @@
 #include <pthread.h>
 
 #include "comm_nucleo.hpp"
+#include "goldo_conf.hpp"
 
 
 using namespace goldobot;
@@ -26,6 +27,8 @@ DirectUartNucleo& DirectUartNucleo::instance()
 
 DirectUartNucleo::DirectUartNucleo()
 {
+  m_enabled = false;
+
   strncpy(m_thread_name,"DirectUartNucleo",sizeof(m_thread_name));
 
   m_stop_task = false;
@@ -118,6 +121,18 @@ int DirectUartNucleo::set_interface_attribs(int fd, int speed)
 int DirectUartNucleo::init(char *uart_dev_name, int speed)
 {
   int fd;
+  goldo_conf_info_t& ci = GoldoConf::instance().c();
+
+  if (ci.conf_direct_uart_nucleo_enabled)
+  {
+    m_enabled = true;
+  }
+  else
+  {
+    printf("comm_nucleo : conf_direct_uart_nucleo disabled\n");
+    m_enabled = false;
+    return 0;
+  }
 
   strncpy(m_devname, uart_dev_name, sizeof(m_devname));
   m_devname[sizeof(m_devname)-1] = 0x00;
@@ -126,11 +141,13 @@ int DirectUartNucleo::init(char *uart_dev_name, int speed)
   fd = open(m_devname, O_RDWR | O_NOCTTY | O_SYNC); /* Thomas style */
   //fd = open(m_devname, O_RDWR | O_NDELAY); /* Goldo style */
   if (fd<0) {
-    printf("Cannot open uart device (%s)\n", m_devname);
+    fprintf(stderr, "ERROR : comm_nucleo : cannot open uart device (%s)\n", 
+            m_devname);
     return -1;
   }
 
   if (set_interface_attribs(fd, B115200) != 0) {
+    fprintf(stderr, "ERROR : comm_nucleo : cannot set interface attribs\n");
     return -1;
   }
 
@@ -183,6 +200,18 @@ void DirectUartNucleo::taskFunction()
 
   while(!m_stop_task)
   {
+    if (!m_enabled)
+    {
+#ifdef WIN32
+      Sleep(10);
+      sched_yield();
+#else
+      usleep(10000);
+      pthread_yield();
+#endif
+      continue;
+    }
+
     FD_ZERO(&infds);
     FD_SET(m_uart_fd, &infds);
 

@@ -118,7 +118,7 @@ int main(int argc, const char * argv[])
     return -1;
   }
 
-  if ((!autotest_flag) && (CommZmq::instance().init(ci.conf_zmq_port)!=0))
+  if ((!autotest_flag) && (CommZmq::instance().init(ci.conf_zmq_port, ci.conf_zmq_port_comm_uart)!=0))
   {
     fprintf(stderr, "ERROR : cannot init ZMQ interface.\n");
     return -1;
