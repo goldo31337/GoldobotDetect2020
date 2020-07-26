@@ -64,6 +64,8 @@ CommRplidar::CommRplidar()
   memset (m_viewer_addr_str, 0, sizeof(m_viewer_addr_str));
   memset (&m_viewer_saddr, 0, sizeof(m_viewer_saddr));
   memset (m_viewer_send_buf, 0, sizeof(m_viewer_send_buf));
+
+  m_calib_ns = 0;
 }
 
 int CommRplidar::init(char* rplidar_dev, int baudrate)
@@ -90,6 +92,13 @@ int CommRplidar::init(char* rplidar_dev, int baudrate)
   if (!m_drv) {
     fprintf(stderr, "RPlidarDriver::CreateDriver() error\n");
     return -1;
+  }
+
+  goldo_conf_info_t& ci = GoldoConf::instance().c();
+  m_calib_ns = ci.conf_calib_lidar_nsamples;
+  for (unsigned int i=0; i<m_calib_ns; i++)
+  {
+    m_calib[i] = ci.conf_calib_lidar_sample[i];
   }
 
   return 0;
@@ -133,6 +142,40 @@ void CommRplidar::stop_scan()
     m_drv->stop();
     m_drv->stopMotor();
   }
+}
+
+double CommRplidar::rho_correction(double meas_rho)
+{
+  goldo_conf_info_t& ci = GoldoConf::instance().c();
+  unsigned int ns = m_calib_ns;
+  double l_rho_correction_factor = ci.conf_rho_correction_factor;
+  unsigned int i;
+  double real_rho = meas_rho;
+
+  if (ns==0)
+  {
+    return meas_rho*l_rho_correction_factor;
+  }
+
+  for (i=0; i<(ns-1); i++)
+  {
+    if ((meas_rho>=m_calib[i].meas_d) && (meas_rho<m_calib[i+1].meas_d))
+    {
+      double delta_meas = m_calib[i+1].meas_d - m_calib[i].meas_d;
+      double delta_real = m_calib[i+1].real_d - m_calib[i].real_d;
+      real_rho = m_calib[i].real_d + 
+        (meas_rho-m_calib[i].meas_d)*delta_real/delta_meas;
+    }
+  }
+  if (meas_rho>=m_calib[ns-1].meas_d)
+  {
+    double delta_meas = m_calib[ns-1].meas_d - m_calib[ns-2].meas_d;
+    double delta_real = m_calib[ns-1].real_d - m_calib[ns-2].real_d;
+    real_rho=m_calib[ns-2].real_d + 
+      (meas_rho-m_calib[ns-2].meas_d)*delta_real/delta_meas;
+  }
+
+  return real_rho;
 }
 
 int CommRplidar::send_to_viewer()
@@ -203,7 +246,8 @@ void CommRplidar::taskFunction()
 
   goldo_conf_info_t& ci = GoldoConf::instance().c();
   double l_theta_correction = ci.conf_theta_correction_deg*M_PI/180.0f;
-  double l_rho_correction_factor = ci.conf_rho_correction_factor;
+  /* FIXME : TODO : clean-up */
+  //double l_rho_correction_factor = ci.conf_rho_correction_factor;
 
   // make connection...
   if (IS_FAIL(m_drv->connect(m_rplidar_dev_str, m_baudrate))) {
@@ -288,7 +332,9 @@ void CommRplidar::taskFunction()
       {
         double my_theta = ((nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f)*(2.0f*M_PI/360.0f) + l_theta_correction;
         my_theta = -my_theta; /* FIXME : TODO : explication? (WTF?!) */
-        double my_R = l_rho_correction_factor * nodes[pos].distance_q2/4.0f;
+        /* FIXME : TODO : clean-up */
+        //double my_R = l_rho_correction_factor * nodes[pos].distance_q2/4.0f;
+        double my_R = rho_correction(nodes[pos].distance_q2/4.0f);
 
         RobotState::instance().lock();
         int l_odo_x_mm         = RobotState::instance().s().x_mm;
