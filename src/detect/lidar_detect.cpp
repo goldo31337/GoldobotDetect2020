@@ -84,7 +84,7 @@ int LidarDetect::init()
   m_last_free_cache = 0;
 
   /* FIXME : TODO : add beacon zones in conf! */
-  m_beacon_zone_cnt = 3;
+  m_beacon_zone_cnt = 4;
 
   m_beacon_zone[0].x_min_mm =  1000.0 - 100.0;
   m_beacon_zone[0].y_min_mm = -1500.0 - 100.0;
@@ -100,6 +100,20 @@ int LidarDetect::init()
   m_beacon_zone[2].y_min_mm =  1500.0 -  20.0;
   m_beacon_zone[2].x_max_mm =  1950.0 + 100.0;
   m_beacon_zone[2].y_max_mm =  1500.0 + 100.0;
+
+#if 1
+/* FIXME : EXPERIMENTAL : girouette */
+  m_beacon_zone[3].x_min_mm =  -200.0;
+  m_beacon_zone[3].y_min_mm =  -200.0;
+  m_beacon_zone[3].x_max_mm =   200.0;
+  m_beacon_zone[3].y_max_mm =   200.0;
+#else
+/* FIXME : DEBUG : CALIB */
+  m_beacon_zone[3].x_min_mm =  1500.0;
+  m_beacon_zone[3].y_min_mm = -1300.0;
+  m_beacon_zone[3].x_max_mm =  1800.0;
+  m_beacon_zone[3].y_max_mm =  1500.0;
+#endif
 
   return 0;
 }
